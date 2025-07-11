@@ -71,6 +71,16 @@ export default function Home() {
           <div className="xl:col-span-3">
             {centerPoint ? (
               <div className="space-y-6">
+                {/* 検索結果リスト */}
+                <div className="h-[400px] overflow-hidden">
+                  <SearchResults 
+                    results={results} 
+                    centerPoint={centerPoint}
+                    onPlaceSelect={setSelectedPlace}
+                    selectedPlace={selectedPlace}
+                  />
+                </div>
+                
                 {/* 地図 */}
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="p-4 border-b">
@@ -86,16 +96,6 @@ export default function Home() {
                       />
                     )}
                   </div>
-                </div>
-                
-                {/* 検索結果リスト */}
-                <div className="h-[400px] overflow-hidden">
-                  <SearchResults 
-                    results={results} 
-                    centerPoint={centerPoint}
-                    onPlaceSelect={setSelectedPlace}
-                    selectedPlace={selectedPlace}
-                  />
                 </div>
               </div>
             ) : (
