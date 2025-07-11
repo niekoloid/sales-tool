@@ -17,18 +17,28 @@ export default function Home() {
   const loadGoogleMaps = async () => {
     if (isGoogleMapsLoaded) return;
     
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    console.log('API Key status:', apiKey ? 'Set' : 'Not set');
+    
+    if (!apiKey) {
+      console.error('Google Maps API key is not set');
+      alert('Google Maps APIキーが設定されていません。環境変数を確認してください。');
+      return;
+    }
+    
     try {
       const loader = new Loader({
-        apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        apiKey: apiKey,
         version: 'weekly',
         libraries: ['places', 'geometry']
       });
       
       await loader.load();
       setIsGoogleMapsLoaded(true);
+      console.log('Google Maps loaded successfully');
     } catch (error) {
       console.error('Google Maps APIの読み込みに失敗しました:', error);
-      alert('Google Maps APIの読み込みに失敗しました。APIキーを確認してください。');
+      alert('Google Maps APIの読み込みに失敗しました。APIキーと設定を確認してください。');
     }
   };
 
