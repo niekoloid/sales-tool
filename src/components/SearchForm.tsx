@@ -6,6 +6,9 @@ import { SearchFilters } from '@/lib/google-maps';
 interface SearchFormProps {
   onSearch: (filters: SearchFilters) => void;
   isLoading: boolean;
+  currentLocation?: { lat: number; lng: number } | null;
+  isGettingLocation?: boolean;
+  locationError?: string | null;
 }
 
 const BUSINESS_TYPES = [
@@ -49,28 +52,23 @@ const BUSINESS_CATEGORIES = {
   education: { label: '教育・文化', color: 'bg-yellow-50 border-yellow-200' },
 };
 
-export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
+export default function SearchForm({ onSearch, isLoading, currentLocation, isGettingLocation, locationError }: SearchFormProps) {
   const [selectedBusinessTypes, setSelectedBusinessTypes] = useState<string[]>(['restaurant']);
   const [maxDistance, setMaxDistance] = useState(5000);
   const [maxReviews, setMaxReviews] = useState(100);
   const [address, setAddress] = useState('');
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
 
   const getCurrentLocation = () => {
-    setIsGettingLocation(true);
-    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
           setAddress(`現在地 (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`);
-          setIsGettingLocation(false);
         },
         (error) => {
           console.error('位置情報の取得に失敗しました:', error);
           alert('位置情報の取得に失敗しました。手動で住所を入力してください。');
-          setIsGettingLocation(false);
         },
         {
           enableHighAccuracy: true,
@@ -80,7 +78,6 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
       );
     } else {
       alert('このブラウザは位置情報機能に対応していません。');
-      setIsGettingLocation(false);
     }
   };
 
@@ -173,14 +170,34 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
             />
             <button
               type="button"
-              onClick={getCurrentLocation}
-              disabled={isGettingLocation}
+              onClick={() => {
+                if (currentLocation) {
+                  setAddress(`現在地 (${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)})`);
+                } else {
+                  getCurrentLocation();
+                }
+              }}
+              disabled={isGettingLocation || (!currentLocation && locationError !== null)}
               className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isGettingLocation ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   <span>取得中...</span>
+                </>
+              ) : currentLocation ? (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>現在地を使用</span>
+                </>
+              ) : locationError ? (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.664-.833-2.464 0L4.232 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <span>取得失敗</span>
                 </>
               ) : (
                 <>

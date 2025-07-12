@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import SearchForm from '@/components/SearchForm';
 import SearchResults from '@/components/SearchResults';
@@ -11,8 +11,48 @@ export default function Home() {
   const [results, setResults] = useState<PlaceDetails[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [centerPoint, setCenterPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isGoogleMapsLoaded, setIsGoogleMapsLoaded] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  // 現在地を取得する関数
+  const getCurrentLocation = () => {
+    return new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('このブラウザは位置情報機能に対応していません。'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          resolve({ lat: latitude, lng: longitude });
+        },
+        (error) => {
+          let errorMessage = '位置情報の取得に失敗しました。';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = '位置情報のアクセスが拒否されました。ブラウザの設定で許可してください。';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = '位置情報が利用できません。';
+              break;
+            case error.TIMEOUT:
+              errorMessage = '位置情報の取得がタイムアウトしました。';
+              break;
+          }
+          reject(new Error(errorMessage));
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 300000 // 5分間キャッシュ
+        }
+      );
+    });
+  };
 
   const loadGoogleMaps = async () => {
     if (isGoogleMapsLoaded) return;
@@ -38,9 +78,44 @@ export default function Home() {
       console.log('Google Maps loaded successfully');
     } catch (error) {
       console.error('Google Maps APIの読み込みに失敗しました:', error);
-      alert('Google Maps APIの読み込みに失敗しました。APIキーと設定を確認してください。');
+      setLocationError('Google Maps APIの読み込みに失敗しました。');
     }
   };
+
+  // アプリ起動時に現在地を取得してマップを初期化
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        setIsGettingLocation(true);
+        setLocationError(null);
+        
+        // Google Maps APIと現在地を並列取得
+        const [location] = await Promise.all([
+          getCurrentLocation(),
+          loadGoogleMaps()
+        ]);
+        
+        setCurrentLocation(location);
+        setCenterPoint(location);
+        console.log('現在地を取得しました:', location);
+        
+      } catch (error) {
+        console.error('初期化エラー:', error);
+        setLocationError(error instanceof Error ? error.message : '初期化に失敗しました');
+        
+        // エラーの場合はデフォルト位置（東京駅）を設定
+        const defaultLocation = { lat: 35.6812, lng: 139.7671 };
+        setCenterPoint(defaultLocation);
+        
+        // Google Mapsだけは読み込んでおく
+        await loadGoogleMaps();
+      } finally {
+        setIsGettingLocation(false);
+      }
+    };
+
+    initializeApp();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = async (filters: SearchFilters) => {
     setIsLoading(true);
@@ -66,13 +141,23 @@ export default function Home() {
       {/* ヘッダー */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="text-center">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
-              営業アタックリスト作成ツール
-            </h1>
-            <p className="text-sm sm:text-base lg:text-lg text-gray-600">
-              Google Mapsのデータを使って効率的な営業リストを作成
-            </p>
+          <div className="flex justify-between items-center">
+            <div className="text-center flex-1">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
+                営業アタックリスト作成ツール
+              </h1>
+              <p className="text-sm sm:text-base lg:text-lg text-gray-600">
+                Google Mapsのデータを使って効率的な営業リストを作成
+              </p>
+            </div>
+            <div className="hidden md:block">
+              <a
+                href="/landing"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                サービス紹介
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -83,7 +168,13 @@ export default function Home() {
           {/* 検索フォーム - モバイルでは上、デスクトップでは左 */}
           <div className="lg:w-80 lg:flex-shrink-0">
             <div className="sticky top-6">
-              <SearchForm onSearch={handleSearch} isLoading={isLoading} />
+              <SearchForm 
+                onSearch={handleSearch} 
+                isLoading={isLoading}
+                currentLocation={currentLocation}
+                isGettingLocation={isGettingLocation}
+                locationError={locationError}
+              />
             </div>
           </div>
           
@@ -129,6 +220,7 @@ export default function Home() {
                               places={results}
                               onPlaceSelect={setSelectedPlace}
                               selectedPlace={selectedPlace}
+                              currentLocation={currentLocation}
                             />
                           )}
                         </div>
@@ -166,6 +258,7 @@ export default function Home() {
                           places={results}
                           onPlaceSelect={setSelectedPlace}
                           selectedPlace={selectedPlace}
+                          currentLocation={currentLocation}
                         />
                       ) : (
                         <div className="h-full flex items-center justify-center bg-gray-50">
@@ -196,13 +289,40 @@ export default function Home() {
             ) : (
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
                 <div className="p-8 text-center">
-                  <div className="text-blue-500 text-6xl mb-6">🎯</div>
-                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4">
-                    検索を開始してください
-                  </h2>
-                  <p className="text-gray-600 mb-8">
-                    左側の検索フォームに条件を入力して、営業対象となる店舗や施設を検索できます。
-                  </p>
+                  {isGettingLocation ? (
+                    <>
+                      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-6"></div>
+                      <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4">
+                        現在地を取得中...
+                      </h2>
+                      <p className="text-gray-600 mb-4">
+                        ブラウザが位置情報へのアクセスを求めています。「許可」をクリックしてください。
+                      </p>
+                    </>
+                  ) : locationError ? (
+                    <>
+                      <div className="text-yellow-500 text-6xl mb-6">⚠️</div>
+                      <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4">
+                        位置情報の取得に失敗
+                      </h2>
+                      <p className="text-gray-600 mb-6">
+                        {locationError}
+                      </p>
+                      <p className="text-sm text-gray-500 mb-6">
+                        デフォルト位置（東京駅）から検索を開始できます。
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-blue-500 text-6xl mb-6">🎯</div>
+                      <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4">
+                        検索を開始してください
+                      </h2>
+                      <p className="text-gray-600 mb-8">
+                        左側の検索フォームに条件を入力して、営業対象となる店舗や施設を検索できます。
+                      </p>
+                    </>
+                  )}
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
                     <div className="bg-blue-50 p-4 rounded-lg">

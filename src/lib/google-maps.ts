@@ -219,7 +219,7 @@ class GoogleMapsService {
                 formatted_phone_number: place.formatted_phone_number,
                 website: place.website,
                 opening_hours: place.opening_hours ? {
-                  open_now: place.opening_hours.open_now || false,
+                  open_now: place.opening_hours.isOpen?.() || false,
                   weekday_text: place.opening_hours.weekday_text || []
                 } : undefined
               };

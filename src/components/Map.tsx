@@ -8,9 +8,10 @@ interface MapProps {
   places: PlaceDetails[];
   onPlaceSelect?: (place: PlaceDetails) => void;
   selectedPlace?: PlaceDetails | null;
+  currentLocation?: { lat: number; lng: number } | null;
 }
 
-export default function Map({ center, places, onPlaceSelect, selectedPlace }: MapProps) {
+export default function Map({ center, places, onPlaceSelect, selectedPlace, currentLocation }: MapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Record<string, google.maps.Marker>>({});
   const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -18,6 +19,7 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
   const [isMapLoading, setIsMapLoading] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
   const [searchRadiusCircle, setSearchRadiusCircle] = useState<google.maps.Circle | null>(null);
+  const [currentLocationMarker, setCurrentLocationMarker] = useState<google.maps.Marker | null>(null);
 
   // 地図を初期化
   useEffect(() => {
@@ -268,6 +270,55 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
     return 6371 * c;
   };
 
+  // 現在地マーカーを管理
+  useEffect(() => {
+    if (!map || !currentLocation) return;
+
+    // 既存の現在地マーカーを削除
+    if (currentLocationMarker) {
+      currentLocationMarker.setMap(null);
+    }
+
+    // 現在地マーカーを作成
+    const marker = new google.maps.Marker({
+      position: currentLocation,
+      map,
+      title: '現在地',
+      icon: {
+        url: 'data:image/svg+xml;base64,' + btoa(`
+          <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="14" fill="#10B981" stroke="white" stroke-width="3"/>
+            <circle cx="16" cy="16" r="8" fill="#059669"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+          </svg>
+        `),
+        scaledSize: new google.maps.Size(32, 32),
+        anchor: new google.maps.Point(16, 16)
+      },
+      zIndex: 1000 // 他のマーカーより上に表示
+    });
+
+    // 現在地マーカーのクリックイベント
+    marker.addListener('click', () => {
+      const content = `
+        <div class="p-3 max-w-xs text-center">
+          <div class="text-green-500 text-2xl mb-2">📍</div>
+          <h3 class="font-bold text-lg mb-2 text-gray-900">現在地</h3>
+          <p class="text-sm text-gray-600 mb-3">あなたの現在位置です</p>
+          <div class="text-xs text-gray-500">
+            <p>緯度: ${currentLocation.lat.toFixed(6)}</p>
+            <p>経度: ${currentLocation.lng.toFixed(6)}</p>
+          </div>
+        </div>
+      `;
+      
+      infoWindow?.setContent(content);
+      infoWindow?.open(map, marker);
+    });
+
+    setCurrentLocationMarker(marker);
+  }, [map, currentLocation, infoWindow]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 選択された場所のマーカーをハイライト
   useEffect(() => {
     if (!selectedPlace || !map) return;
@@ -294,6 +345,11 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
       });
       markersRef.current = {};
       
+      // 現在地マーカーをクリーンアップ
+      if (currentLocationMarker) {
+        currentLocationMarker.setMap(null);
+      }
+      
       // 検索範囲の円をクリーンアップ
       if (searchRadiusCircle) {
         searchRadiusCircle.setMap(null);
@@ -304,7 +360,7 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
         delete (window as typeof window & { selectPlaceFromMap?: (placeId: string) => void }).selectPlaceFromMap;
       }
     };
-  }, [searchRadiusCircle]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (mapError) {
     return (
