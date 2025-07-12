@@ -46,109 +46,184 @@ class GoogleMapsService {
   }
 
   async initialize(): Promise<void> {
-    await this.loader.load();
-    const map = new google.maps.Map(document.createElement('div'));
-    this.placesService = new google.maps.places.PlacesService(map);
+    try {
+      await this.loader.load();
+      const map = new google.maps.Map(document.createElement('div'));
+      this.placesService = new google.maps.places.PlacesService(map);
+    } catch (error) {
+      throw new Error(`Google Maps APIの初期化に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // キャッシュをクリアするメソッド
+  clearCache(): void {
+    this.placesService = null;
+  }
+
+  // APIの状態をチェックするメソッド
+  isInitialized(): boolean {
+    return this.placesService !== null && typeof window !== 'undefined' && !!window.google;
   }
 
   async searchPlaces(filters: SearchFilters): Promise<PlaceDetails[]> {
-    if (!this.placesService) {
-      await this.initialize();
-    }
+    try {
+      if (!this.placesService) {
+        await this.initialize();
+      }
 
-    return new Promise((resolve, reject) => {
-      const request: google.maps.places.PlaceSearchRequest = {
-        location: new google.maps.LatLng(filters.center.lat, filters.center.lng),
-        radius: filters.maxDistance,
-        type: filters.businessType,
-      };
+      return new Promise((resolve, reject) => {
+        const request: google.maps.places.PlaceSearchRequest = {
+          location: new google.maps.LatLng(filters.center.lat, filters.center.lng),
+          radius: filters.maxDistance,
+          type: filters.businessType,
+        };
 
-      this.placesService!.nearbySearch(request, (results, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-          const filteredResults = results
-            .filter(place => 
-              place.user_ratings_total && 
-              place.user_ratings_total >= filters.minReviews &&
-              place.user_ratings_total <= filters.maxReviews &&
-              place.business_status === 'OPERATIONAL' // 営業中の店舗のみ
-            )
-            .map(place => ({
-              place_id: place.place_id!,
-              name: place.name!,
-              formatted_address: place.vicinity!,
-              rating: place.rating || 0,
-              user_ratings_total: place.user_ratings_total || 0,
-              types: place.types || [],
-              geometry: {
-                location: {
-                  lat: place.geometry!.location!.lat(),
-                  lng: place.geometry!.location!.lng()
-                }
-              },
-              business_status: place.business_status
-            }));
+        this.placesService!.nearbySearch(request, async (results, status) => {
+          try {
+            if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+              const filteredResults = results
+                .filter(place => {
+                  // 基本的なフィルタリング
+                  const hasRequiredFields = place.place_id && place.name && place.geometry?.location;
+                  const hasRatingInRange = !place.user_ratings_total || 
+                    (place.user_ratings_total >= filters.minReviews && place.user_ratings_total <= filters.maxReviews);
+                  const isOperational = !place.business_status || place.business_status === 'OPERATIONAL';
+                  
+                  return hasRequiredFields && hasRatingInRange && isOperational;
+                })
+                .slice(0, 50) // 最大20件に制限
+                .map(place => ({
+                  place_id: place.place_id!,
+                  name: place.name!,
+                  formatted_address: place.vicinity || place.formatted_address || '位置情報なし',
+                  rating: place.rating || 0,
+                  user_ratings_total: place.user_ratings_total || 0,
+                  types: place.types || [],
+                  geometry: {
+                    location: {
+                      lat: place.geometry!.location!.lat(),
+                      lng: place.geometry!.location!.lng()
+                    }
+                  },
+                  business_status: place.business_status || 'OPERATIONAL'
+                }));
 
-          resolve(filteredResults);
-        } else {
-          reject(new Error(`Places search failed: ${status}`));
-        }
+              // 詳細情報を並列取得（最初の10件のみ）
+              const detailedResults = await Promise.all(
+                filteredResults.slice(0, 10).map(async (place) => {
+                  try {
+                    const details = await this.getPlaceDetails(place.place_id);
+                    return details || place;
+                  } catch {
+                    return place; // 詳細取得に失敗しても基本情報を返す
+                  }
+                })
+              );
+
+              // 詳細取得した結果と残りの結果を結合
+              const allResults = [...detailedResults, ...filteredResults.slice(10)];
+              
+              resolve(allResults);
+            } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+              resolve([]);
+            } else {
+              const errorMessage = this.getErrorMessage(status);
+              reject(new Error(errorMessage));
+            }
+          } catch (error) {
+            reject(error);
+          }
+        });
       });
-    });
+    } catch (error) {
+      throw new Error(`検索の初期化に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private getErrorMessage(status: google.maps.places.PlacesServiceStatus): string {
+    switch (status) {
+      case google.maps.places.PlacesServiceStatus.INVALID_REQUEST:
+        return '無効な検索リクエストです。検索条件を確認してください。';
+      case google.maps.places.PlacesServiceStatus.OVER_QUERY_LIMIT:
+        return 'APIの使用制限を超過しました。しばらく待ってから再度お試しください。';
+      case google.maps.places.PlacesServiceStatus.REQUEST_DENIED:
+        return 'APIキーの設定に問題があります。管理者にお問い合わせください。';
+      case google.maps.places.PlacesServiceStatus.UNKNOWN_ERROR:
+        return 'サーバーエラーが発生しました。再度お試しください。';
+      default:
+        return `検索に失敗しました: ${status}`;
+    }
   }
 
   async getPlaceDetails(placeId: string): Promise<PlaceDetails | null> {
-    if (!this.placesService) {
-      await this.initialize();
-    }
+    try {
+      if (!this.placesService) {
+        await this.initialize();
+      }
 
-    return new Promise((resolve, reject) => {
-      const request: google.maps.places.PlaceDetailsRequest = {
-        placeId: placeId,
-        fields: [
-          'place_id',
-          'name',
-          'formatted_address',
-          'rating',
-          'user_ratings_total',
-          'types',
-          'geometry',
-          'business_status',
-          'formatted_phone_number',
-          'website',
-          'opening_hours'
-        ]
-      };
+      return new Promise((resolve, reject) => {
+        const request: google.maps.places.PlaceDetailsRequest = {
+          placeId: placeId,
+          fields: [
+            'place_id',
+            'name',
+            'formatted_address',
+            'rating',
+            'user_ratings_total',
+            'types',
+            'geometry',
+            'business_status',
+            'formatted_phone_number',
+            'website',
+            'opening_hours'
+          ]
+        };
 
-      this.placesService!.getDetails(request, (place, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && place) {
-          const details: PlaceDetails = {
-            place_id: place.place_id!,
-            name: place.name!,
-            formatted_address: place.formatted_address!,
-            rating: place.rating || 0,
-            user_ratings_total: place.user_ratings_total || 0,
-            types: place.types || [],
-            geometry: {
-              location: {
-                lat: place.geometry!.location!.lat(),
-                lng: place.geometry!.location!.lng()
-              }
-            },
-            business_status: place.business_status,
-            formatted_phone_number: place.formatted_phone_number,
-            website: place.website,
-            opening_hours: place.opening_hours ? {
-              open_now: place.opening_hours.open_now || false,
-              weekday_text: place.opening_hours.weekday_text || []
-            } : undefined
-          };
+        // タイムアウトを設定
+        const timeout = setTimeout(() => {
+          reject(new Error('詳細情報の取得がタイムアウトしました'));
+        }, 10000);
 
-          resolve(details);
-        } else {
-          reject(new Error(`Place details failed: ${status}`));
-        }
+        this.placesService!.getDetails(request, (place, status) => {
+          clearTimeout(timeout);
+          
+          if (status === google.maps.places.PlacesServiceStatus.OK && place) {
+            try {
+              const details: PlaceDetails = {
+                place_id: place.place_id!,
+                name: place.name!,
+                formatted_address: place.formatted_address || place.vicinity || '位置情報なし',
+                rating: place.rating || 0,
+                user_ratings_total: place.user_ratings_total || 0,
+                types: place.types || [],
+                geometry: {
+                  location: {
+                    lat: place.geometry!.location!.lat(),
+                    lng: place.geometry!.location!.lng()
+                  }
+                },
+                business_status: place.business_status || 'OPERATIONAL',
+                formatted_phone_number: place.formatted_phone_number,
+                website: place.website,
+                opening_hours: place.opening_hours ? {
+                  open_now: place.opening_hours.open_now || false,
+                  weekday_text: place.opening_hours.weekday_text || []
+                } : undefined
+              };
+
+              resolve(details);
+            } catch (error) {
+              reject(new Error(`詳細情報の処理に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`));
+            }
+          } else {
+            const errorMessage = this.getErrorMessage(status);
+            reject(new Error(errorMessage));
+          }
+        });
       });
-    });
+    } catch (error) {
+      throw new Error(`詳細情報取得の初期化に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   calculateDistance(point1: { lat: number; lng: number }, point2: { lat: number; lng: number }): number {

@@ -66,85 +66,108 @@ export default function SearchResults({ results, centerPoint, onPlaceSelect, sel
 
   return (
     <div className="bg-white rounded-lg shadow-md h-full flex flex-col">
-      <div className="flex justify-between items-center p-4 border-b">
-        <h2 className="text-lg font-bold text-gray-900">検索結果 ({results.length}件)</h2>
-        <button
-          onClick={exportToCSV}
-          className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-        >
-          CSVエクスポート
-        </button>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-4 border-b gap-3">
+        <h2 className="text-lg font-bold text-gray-900">
+          検索結果 
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 ml-2">
+            {results.length}件
+          </span>
+        </h2>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={exportToCSV}
+            className="flex items-center space-x-2 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="hidden sm:inline">CSVエクスポート</span>
+            <span className="sm:hidden">CSV</span>
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="space-y-3">
-          {results.map((place, index) => (
-            <div 
-              key={place.place_id} 
-              className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
-                selectedPlace?.place_id === place.place_id 
-                  ? 'border-blue-500 bg-blue-50' 
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-              onClick={() => onPlaceSelect?.(place)}
-            >
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-start space-x-2">
-                  <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-base">{place.name}</h3>
-                    {place.business_status === 'OPERATIONAL' && (
-                      <span className="text-xs text-green-700 font-semibold">営業中</span>
-                    )}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-2 sm:p-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-1 gap-3">
+            {results.map((place, index) => (
+              <div 
+                key={place.place_id} 
+                className={`p-3 sm:p-4 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
+                  selectedPlace?.place_id === place.place_id 
+                    ? 'border-blue-500 bg-blue-50 shadow-md' 
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+                onClick={() => onPlaceSelect?.(place)}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-start space-x-3 flex-1 min-w-0">
+                    <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-bold flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-gray-900 text-sm sm:text-base truncate">{place.name}</h3>
+                      <div className="flex items-center space-x-2 mt-1">
+                        {place.business_status === 'OPERATIONAL' && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            営業中
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-500 font-medium">
+                          距離: {calculateDistance(centerPoint, place.geometry.location).toFixed(1)}km
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1 flex-shrink-0">
+                    <span className="text-yellow-400 text-sm">★</span>
+                    <span className="text-sm text-gray-800 font-medium">{place.rating}</span>
+                    <span className="text-xs text-gray-500 hidden sm:inline">({place.user_ratings_total})</span>
                   </div>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <span className="text-yellow-500">★</span>
-                  <span className="text-sm text-gray-800 font-medium">{place.rating}</span>
-                  <span className="text-xs text-gray-700">({place.user_ratings_total})</span>
-                </div>
-              </div>
-              
-              <p className="text-sm text-gray-800 mb-2">{place.formatted_address}</p>
-              
-              <div className="flex items-center justify-between text-xs text-gray-700">
-                <span className="font-medium">距離: {calculateDistance(centerPoint, place.geometry.location).toFixed(2)}km</span>
-                <div className="flex space-x-2">
-                  {place.formatted_phone_number && (
-                    <span>📞</span>
-                  )}
-                  {place.website && (
-                    <span>🌐</span>
-                  )}
-                </div>
-              </div>
-              
-              {(place.formatted_phone_number || place.website) && (
-                <div className="mt-2 pt-2 border-t border-gray-100">
-                  {place.formatted_phone_number && (
-                    <div className="text-xs text-gray-800 mb-1 font-medium">
-                      📞 {place.formatted_phone_number}
-                    </div>
-                  )}
-                  {place.website && (
-                    <div className="text-xs">
+                
+                <p className="text-xs sm:text-sm text-gray-700 mb-3 line-clamp-2">{place.formatted_address}</p>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {place.formatted_phone_number && (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-gray-400 text-sm">📞</span>
+                        <span className="text-xs text-gray-600 hidden sm:block truncate max-w-[120px]">
+                          {place.formatted_phone_number}
+                        </span>
+                      </div>
+                    )}
+                    {place.website && (
                       <a
                         href={place.website}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-700 hover:underline font-medium"
+                        className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        🌐 ウェブサイト
+                        <span className="text-sm">🌐</span>
+                        <span className="text-xs hidden sm:inline">Web</span>
                       </a>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center space-x-1">
+                    <span className="text-xs text-gray-500">レビュー:</span>
+                    <span className="text-xs font-medium text-gray-700">{place.user_ratings_total}</span>
+                  </div>
                 </div>
-              )}
+              </div>
+            ))}
+          </div>
+          
+          {results.length > 10 && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-500">
+                さらに{results.length - 10}件の結果があります
+              </p>
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
