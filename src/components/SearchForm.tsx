@@ -9,29 +9,53 @@ interface SearchFormProps {
 }
 
 const BUSINESS_TYPES = [
-  { value: 'restaurant', label: 'レストラン' },
-  { value: 'store', label: '小売店' },
-  { value: 'hospital', label: '病院・医院' },
-  { value: 'beauty_salon', label: '美容院・サロン' },
-  { value: 'gas_station', label: 'ガソリンスタンド' },
-  { value: 'bank', label: '銀行' },
-  { value: 'pharmacy', label: '薬局' },
-  { value: 'gym', label: 'ジム・フィットネス' },
-  { value: 'dentist', label: '歯科医院' },
-  { value: 'car_dealer', label: '自動車販売店' },
-  { value: 'real_estate_agency', label: '不動産会社' },
-  { value: 'insurance_agency', label: '保険会社' },
-  { value: 'accounting', label: '会計事務所' },
-  { value: 'lawyer', label: '法律事務所' },
-  { value: 'school', label: '学校・教育機関' }
+  { value: 'restaurant', label: 'レストラン', icon: '🍽️', category: 'food' },
+  { value: 'cafe', label: 'カフェ', icon: '☕', category: 'food' },
+  { value: 'bakery', label: 'ベーカリー', icon: '🥖', category: 'food' },
+  { value: 'bar', label: 'バー・居酒屋', icon: '🍺', category: 'food' },
+  
+  { value: 'store', label: '小売店', icon: '🏪', category: 'retail' },
+  { value: 'clothing_store', label: '服飾店', icon: '👔', category: 'retail' },
+  { value: 'electronics_store', label: '電気店', icon: '📱', category: 'retail' },
+  { value: 'supermarket', label: 'スーパー', icon: '🛒', category: 'retail' },
+  { value: 'convenience_store', label: 'コンビニ', icon: '🏪', category: 'retail' },
+  
+  { value: 'hospital', label: '病院・医院', icon: '🏥', category: 'health' },
+  { value: 'dentist', label: '歯科医院', icon: '🦷', category: 'health' },
+  { value: 'pharmacy', label: '薬局', icon: '💊', category: 'health' },
+  { value: 'beauty_salon', label: '美容院・サロン', icon: '💇', category: 'health' },
+  { value: 'gym', label: 'ジム・フィットネス', icon: '💪', category: 'health' },
+  
+  { value: 'bank', label: '銀行', icon: '🏦', category: 'business' },
+  { value: 'real_estate_agency', label: '不動産会社', icon: '🏠', category: 'business' },
+  { value: 'insurance_agency', label: '保険会社', icon: '🛡️', category: 'business' },
+  { value: 'accounting', label: '会計事務所', icon: '📊', category: 'business' },
+  { value: 'lawyer', label: '法律事務所', icon: '⚖️', category: 'business' },
+  
+  { value: 'gas_station', label: 'ガソリンスタンド', icon: '⛽', category: 'automotive' },
+  { value: 'car_dealer', label: '自動車販売店', icon: '🚗', category: 'automotive' },
+  { value: 'car_repair', label: '自動車修理', icon: '🔧', category: 'automotive' },
+  
+  { value: 'school', label: '学校・教育機関', icon: '🏫', category: 'education' },
+  { value: 'library', label: '図書館', icon: '📚', category: 'education' },
 ];
 
+const BUSINESS_CATEGORIES = {
+  food: { label: '飲食店', color: 'bg-orange-50 border-orange-200' },
+  retail: { label: '小売・商業', color: 'bg-blue-50 border-blue-200' },
+  health: { label: '健康・美容', color: 'bg-green-50 border-green-200' },
+  business: { label: 'ビジネス・金融', color: 'bg-purple-50 border-purple-200' },
+  automotive: { label: '自動車関連', color: 'bg-red-50 border-red-200' },
+  education: { label: '教育・文化', color: 'bg-yellow-50 border-yellow-200' },
+};
+
 export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
-  const [businessType, setBusinessType] = useState('restaurant');
+  const [selectedBusinessTypes, setSelectedBusinessTypes] = useState<string[]>(['restaurant']);
   const [maxDistance, setMaxDistance] = useState(5000);
   const [maxReviews, setMaxReviews] = useState(100);
   const [address, setAddress] = useState('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   const getCurrentLocation = () => {
     setIsGettingLocation(true);
@@ -102,8 +126,13 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
         center = await geocodeAddress(address);
       }
 
+      if (selectedBusinessTypes.length === 0) {
+        alert('業種を1つ以上選択してください。');
+        return;
+      }
+
       const filters: SearchFilters = {
-        businessType,
+        businessTypes: selectedBusinessTypes,
         maxDistance,
         minReviews: 0,
         maxReviews,
@@ -167,27 +196,100 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
         </div>
 
         <div>
-          <label htmlFor="businessType" className="block text-sm font-bold text-gray-900 mb-2">
-            業種
-          </label>
-          <div className="relative">
-            <select
-              id="businessType"
-              value={businessType}
-              onChange={(e) => setBusinessType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 appearance-none bg-white transition-colors"
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-bold text-gray-900">
+              業種選択 
+              <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                {selectedBusinessTypes.length}個選択中
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowAllCategories(!showAllCategories)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
             >
-              {BUSINESS_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+              {showAllCategories ? '▲ 閉じる' : '▼ すべて表示'}
+            </button>
+          </div>
+          
+          <div className="space-y-4 max-h-80 overflow-y-auto">
+            {Object.entries(BUSINESS_CATEGORIES).map(([categoryKey, category]) => {
+              const categoryTypes = BUSINESS_TYPES.filter(type => type.category === categoryKey);
+              const isExpanded = showAllCategories || categoryKey === 'food' || categoryKey === 'retail';
+              
+              if (!isExpanded && categoryKey !== 'food' && categoryKey !== 'retail') {
+                return null;
+              }
+              
+              return (
+                <div key={categoryKey} className={`p-3 rounded-lg border ${category.color}`}>
+                  <h4 className="text-sm font-semibold text-gray-800 mb-2">{category.label}</h4>
+                  <div className="grid grid-cols-1 gap-2">
+                    {categoryTypes.map((type) => {
+                      const isSelected = selectedBusinessTypes.includes(type.value);
+                      return (
+                        <label 
+                          key={type.value} 
+                          className={`flex items-center p-2 rounded-md cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'bg-blue-100 border border-blue-300' 
+                              : 'bg-white border border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedBusinessTypes([...selectedBusinessTypes, type.value]);
+                              } else {
+                                setSelectedBusinessTypes(selectedBusinessTypes.filter(t => t !== type.value));
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <div className={`w-5 h-5 border-2 rounded-md flex items-center justify-center mr-3 ${
+                            isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-lg mr-2">{type.icon}</span>
+                          <span className="text-sm font-medium text-gray-900">{type.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedBusinessTypes(BUSINESS_TYPES.filter(t => t.category === 'food').map(t => t.value))}
+              className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full hover:bg-orange-200 transition-colors"
+            >
+              飲食店をすべて選択
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedBusinessTypes(BUSINESS_TYPES.filter(t => t.category === 'retail').map(t => t.value))}
+              className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full hover:bg-blue-200 transition-colors"
+            >
+              小売店をすべて選択
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedBusinessTypes([])}
+              className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              すべてクリア
+            </button>
           </div>
         </div>
 
@@ -273,6 +375,12 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
         {!address && (
           <p className="text-xs text-red-500 text-center">
             基準地点を入力してください
+          </p>
+        )}
+        
+        {selectedBusinessTypes.length === 0 && (
+          <p className="text-xs text-red-500 text-center">
+            業種を1つ以上選択してください
           </p>
         )}
       </form>

@@ -23,7 +23,7 @@ export interface PlaceDetails {
 }
 
 export interface SearchFilters {
-  businessType: string;
+  businessTypes: string[];
   maxDistance: number;
   minReviews: number;
   maxReviews: number;
@@ -71,70 +71,83 @@ class GoogleMapsService {
         await this.initialize();
       }
 
-      return new Promise((resolve, reject) => {
-        const request: google.maps.places.PlaceSearchRequest = {
-          location: new google.maps.LatLng(filters.center.lat, filters.center.lng),
-          radius: filters.maxDistance,
-          type: filters.businessType,
-        };
+      // 複数の業種タイプで並列検索を実行
+      const searchPromises = filters.businessTypes.map(businessType => 
+        new Promise<google.maps.places.PlaceResult[]>((resolve) => {
+          const request: google.maps.places.PlaceSearchRequest = {
+            location: new google.maps.LatLng(filters.center.lat, filters.center.lng),
+            radius: filters.maxDistance,
+            type: businessType,
+          };
 
-        this.placesService!.nearbySearch(request, async (results, status) => {
-          try {
+          this.placesService!.nearbySearch(request, (results, status) => {
             if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-              const filteredResults = results
-                .filter(place => {
-                  // 基本的なフィルタリング
-                  const hasRequiredFields = place.place_id && place.name && place.geometry?.location;
-                  const hasRatingInRange = !place.user_ratings_total || 
-                    (place.user_ratings_total >= filters.minReviews && place.user_ratings_total <= filters.maxReviews);
-                  const isOperational = !place.business_status || place.business_status === 'OPERATIONAL';
-                  
-                  return hasRequiredFields && hasRatingInRange && isOperational;
-                })
-                .slice(0, 50) // 最大20件に制限
-                .map(place => ({
-                  place_id: place.place_id!,
-                  name: place.name!,
-                  formatted_address: place.vicinity || place.formatted_address || '位置情報なし',
-                  rating: place.rating || 0,
-                  user_ratings_total: place.user_ratings_total || 0,
-                  types: place.types || [],
-                  geometry: {
-                    location: {
-                      lat: place.geometry!.location!.lat(),
-                      lng: place.geometry!.location!.lng()
-                    }
-                  },
-                  business_status: place.business_status || 'OPERATIONAL'
-                }));
-
-              // 詳細情報を並列取得（最初の10件のみ）
-              const detailedResults = await Promise.all(
-                filteredResults.slice(0, 10).map(async (place) => {
-                  try {
-                    const details = await this.getPlaceDetails(place.place_id);
-                    return details || place;
-                  } catch {
-                    return place; // 詳細取得に失敗しても基本情報を返す
-                  }
-                })
-              );
-
-              // 詳細取得した結果と残りの結果を結合
-              const allResults = [...detailedResults, ...filteredResults.slice(10)];
-              
-              resolve(allResults);
+              resolve(results);
             } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
               resolve([]);
             } else {
-              const errorMessage = this.getErrorMessage(status);
-              reject(new Error(errorMessage));
+              console.warn(`Search failed for ${businessType}: ${status}`);
+              resolve([]); // エラーでも空配列を返して他の検索を継続
             }
-          } catch (error) {
-            reject(error);
+          });
+        })
+      );
+
+      const resultArrays = await Promise.all(searchPromises);
+      
+      // 全ての結果をマージし、重複を除去
+      const allResults = resultArrays.flat();
+      const uniqueResults = allResults.filter((place, index, self) => 
+        index === self.findIndex(p => p.place_id === place.place_id)
+      );
+
+      if (uniqueResults.length === 0) {
+        return [];
+      }
+
+      const filteredResults = uniqueResults
+        .filter(place => {
+          // 基本的なフィルタリング
+          const hasRequiredFields = place.place_id && place.name && place.geometry?.location;
+          const hasRatingInRange = !place.user_ratings_total || 
+            (place.user_ratings_total >= filters.minReviews && place.user_ratings_total <= filters.maxReviews);
+          const isOperational = !place.business_status || place.business_status === 'OPERATIONAL';
+          
+          return hasRequiredFields && hasRatingInRange && isOperational;
+        })
+        .slice(0, 50) // 最大50件に制限
+        .map(place => ({
+          place_id: place.place_id!,
+          name: place.name!,
+          formatted_address: place.vicinity || place.formatted_address || '位置情報なし',
+          rating: place.rating || 0,
+          user_ratings_total: place.user_ratings_total || 0,
+          types: place.types || [],
+          geometry: {
+            location: {
+              lat: place.geometry!.location!.lat(),
+              lng: place.geometry!.location!.lng()
+            }
+          },
+          business_status: place.business_status || 'OPERATIONAL'
+        }));
+
+      // 詳細情報を並列取得（最初の10件のみ）
+      const detailedResults = await Promise.all(
+        filteredResults.slice(0, 10).map(async (place) => {
+          try {
+            const details = await this.getPlaceDetails(place.place_id);
+            return details || place;
+          } catch {
+            return place; // 詳細取得に失敗しても基本情報を返す
           }
-        });
-      });
+        })
+      );
+
+      // 詳細取得した結果と残りの結果を結合
+      const finalResults = [...detailedResults, ...filteredResults.slice(10)];
+      
+      return finalResults;
     } catch (error) {
       throw new Error(`検索の初期化に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
