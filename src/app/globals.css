@@ -136,3 +136,34 @@ html {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
+
+/* Google Maps specific styles for better interaction */
+.gm-style {
+  font-family: 'Arial', sans-serif !important;
+}
+
+.gm-style-iw {
+  font-family: 'Arial', sans-serif !important;
+}
+
+.gm-style-iw-d {
+  overflow: hidden !important;
+  max-height: none !important;
+}
+
+/* Ensure map controls are clickable */
+.gm-bundled-control {
+  pointer-events: auto !important;
+}
+
+/* Map container styles */
+.map-container {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-x pan-y;
+  user-select: none;
+}
+
+.map-container * {
+  touch-action: pan-x pan-y;
+}

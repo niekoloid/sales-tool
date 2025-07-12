@@ -12,8 +12,8 @@ interface MapProps {
 
 export default function Map({ center, places, onPlaceSelect, selectedPlace }: MapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<Record<string, google.maps.Marker>>({});
   const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [markers, setMarkers] = useState<Record<string, google.maps.Marker>>({});
   const [infoWindow, setInfoWindow] = useState<google.maps.InfoWindow | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -65,6 +65,14 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
             position: google.maps.ControlPosition.RIGHT_CENTER
           },
           fullscreenControl: true,
+          scaleControl: true,
+          rotateControl: true,
+          clickableIcons: true,
+          gestureHandling: 'cooperative',
+          keyboardShortcuts: true,
+          disableDoubleClickZoom: false,
+          draggable: true,
+          scrollwheel: true,
           styles: [
             {
               featureType: 'poi',
@@ -123,9 +131,12 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
   // 中心位置が変更された時に地図を移動
   useEffect(() => {
     if (map) {
+      // 滑らかな移動
       map.panTo(center);
       // 検索範囲を表示（デフォルト5km）
-      updateSearchRadius(center, 5000);
+      setTimeout(() => {
+        updateSearchRadius(center, 5000);
+      }, 500); // 地図の移動完了後に検索範囲を更新
     }
   }, [map, center, updateSearchRadius]);
 
@@ -134,15 +145,16 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
     if (!map || !infoWindow) return;
 
     // 既存のマーカーのplace_idを取得
-    const existingPlaceIds = new Set(Object.keys(markers));
+    const existingPlaceIds = new Set(Object.keys(markersRef.current));
     const newPlaceIds = new Set(places.map(place => place.place_id));
 
     // 削除すべきマーカーを特定して削除
-    const updatedMarkers = { ...markers };
+    const updatedMarkers = { ...markersRef.current };
     existingPlaceIds.forEach(placeId => {
       if (!newPlaceIds.has(placeId)) {
         const marker = updatedMarkers[placeId];
         if (marker) {
+          google.maps.event.clearInstanceListeners(marker);
           marker.setMap(null);
           delete updatedMarkers[placeId];
         }
@@ -150,8 +162,10 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
     });
 
     // 新しいマーカーを作成
+    let hasNewMarkers = false;
     places.forEach((place, index) => {
       if (!updatedMarkers[place.place_id]) {
+        hasNewMarkers = true;
         const marker = new google.maps.Marker({
           position: { lat: place.geometry.location.lat, lng: place.geometry.location.lng },
           map,
@@ -214,8 +228,8 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
       infoWindow.close();
     };
 
-    // 地図の表示範囲を調整
-    if (places.length > 0) {
+    // 地図の表示範囲を調整（新しいマーカーがある場合のみ）
+    if (places.length > 0 && hasNewMarkers) {
       const bounds = new google.maps.LatLngBounds();
       bounds.extend(center);
       places.forEach(place => {
@@ -233,8 +247,11 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
       });
     }
 
-    setMarkers(updatedMarkers);
-  }, [map, places, infoWindow, onPlaceSelect, center, markers]);
+    // マーカーが変更された場合のみ状態を更新
+    if (hasNewMarkers || existingPlaceIds.size !== newPlaceIds.size) {
+      markersRef.current = updatedMarkers;
+    }
+  }, [map, places, infoWindow, onPlaceSelect, center]);
 
   // 距離計算関数
   const calculateDistance = (point1: { lat: number; lng: number }, point2: { lat: number; lng: number }): number => {
@@ -255,7 +272,7 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
   useEffect(() => {
     if (!selectedPlace || !map) return;
 
-    const marker = markers[selectedPlace.place_id];
+    const marker = markersRef.current[selectedPlace.place_id];
     if (marker) {
       // 選択されたマーカーの位置に地図を移動
       map.panTo({ 
@@ -266,15 +283,16 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
       // マーカーをクリックしたときと同じ動作
       google.maps.event.trigger(marker, 'click');
     }
-  }, [selectedPlace, markers, map]);
+  }, [selectedPlace, map]);
 
   // コンポーネントのクリーンアップ
   useEffect(() => {
     return () => {
       // マーカーをクリーンアップ
-      Object.values(markers).forEach(marker => {
+      Object.values(markersRef.current).forEach(marker => {
         marker.setMap(null);
       });
+      markersRef.current = {};
       
       // 検索範囲の円をクリーンアップ
       if (searchRadiusCircle) {
@@ -286,7 +304,7 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
         delete (window as typeof window & { selectPlaceFromMap?: (placeId: string) => void }).selectPlaceFromMap;
       }
     };
-  }, [markers, searchRadiusCircle]);
+  }, [searchRadiusCircle]);
 
   if (mapError) {
     return (
@@ -318,8 +336,10 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace }: Ma
       )}
       <div 
         ref={mapRef} 
-        className="h-full w-full rounded-lg shadow-md"
-        style={{ minHeight: '400px' }}
+        className="h-full w-full rounded-lg shadow-md map-container"
+        style={{ 
+          minHeight: '400px'
+        }}
       />
       {places.length > 0 && (
         <div className="absolute top-4 left-4 bg-white px-3 py-2 rounded-lg shadow-md text-sm font-medium text-gray-700">
