@@ -232,7 +232,7 @@ export default function CTA({ onStartTrial }: CTAProps) {
           <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20">
               <h4 className="font-bold text-white mb-2">Q. Google Maps APIキーは必要ですか？</h4>
-              <p className="text-blue-100 text-sm">A. はい、必要です。取得方法と設定は無料でサポートいたします。</p>
+              <p className="text-blue-100 text-sm">A. サービスに含まれているので不要です。</p>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20">
               <h4 className="font-bold text-white mb-2">Q. 無料トライアルに制限はありますか？</h4>
