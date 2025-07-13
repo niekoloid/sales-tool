@@ -31,6 +31,7 @@ export interface SearchFilters {
     lat: number;
     lng: number;
   };
+  openNowOnly?: boolean;
 }
 
 class GoogleMapsService {
@@ -113,6 +114,8 @@ class GoogleMapsService {
             (place.user_ratings_total >= filters.minReviews && place.user_ratings_total <= filters.maxReviews);
           const isOperational = !place.business_status || place.business_status === 'OPERATIONAL';
           
+          // 営業中フィルタのチェック（基本検索では opening_hours が取得できない場合があるため、詳細検索で後で確認）
+          // ここでは基本フィルタのみ適用
           return hasRequiredFields && hasRatingInRange && isOperational;
         })
         .slice(0, 50) // 最大50件に制限
@@ -132,22 +135,44 @@ class GoogleMapsService {
           business_status: place.business_status || 'OPERATIONAL'
         }));
 
-      // 詳細情報を並列取得（最初の10件のみ）
-      const detailedResults = await Promise.all(
-        filteredResults.slice(0, 10).map(async (place) => {
-          try {
-            const details = await this.getPlaceDetails(place.place_id);
-            return details || place;
-          } catch {
-            return place; // 詳細取得に失敗しても基本情報を返す
-          }
-        })
-      );
+      // 営業中フィルタが有効な場合は、詳細情報を取得してフィルタリング
+      if (filters.openNowOnly) {
+        const detailedResults = await Promise.all(
+          filteredResults.map(async (place) => {
+            try {
+              const details = await this.getPlaceDetails(place.place_id);
+              // 営業時間情報がある場合のみチェック
+              if (details?.opening_hours) {
+                return details.opening_hours.open_now ? details : null;
+              }
+              // 営業時間情報がない場合は含める（情報不足による除外を避ける）
+              return details || place;
+            } catch {
+              return place; // 詳細取得に失敗しても基本情報を返す
+            }
+          })
+        );
+        
+        // nullを除外して結果を返す
+        return detailedResults.filter((result): result is PlaceDetails => result !== null);
+      } else {
+        // 営業中フィルタが無効な場合は従来通りの処理
+        const detailedResults = await Promise.all(
+          filteredResults.slice(0, 10).map(async (place) => {
+            try {
+              const details = await this.getPlaceDetails(place.place_id);
+              return details || place;
+            } catch {
+              return place; // 詳細取得に失敗しても基本情報を返す
+            }
+          })
+        );
 
-      // 詳細取得した結果と残りの結果を結合
-      const finalResults = [...detailedResults, ...filteredResults.slice(10)];
-      
-      return finalResults;
+        // 詳細取得した結果と残りの結果を結合
+        const finalResults = [...detailedResults, ...filteredResults.slice(10)];
+        
+        return finalResults;
+      }
     } catch (error) {
       throw new Error(`検索の初期化に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

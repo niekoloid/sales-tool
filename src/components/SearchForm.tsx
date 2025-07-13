@@ -58,6 +58,7 @@ export default function SearchForm({ onSearch, isLoading, currentLocation, isGet
   const [maxReviews, setMaxReviews] = useState(100);
   const [address, setAddress] = useState('');
   const [showAllCategories, setShowAllCategories] = useState(false);
+  const [openNowOnly, setOpenNowOnly] = useState(true);
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -133,7 +134,8 @@ export default function SearchForm({ onSearch, isLoading, currentLocation, isGet
         maxDistance,
         minReviews: 0,
         maxReviews,
-        center
+        center,
+        openNowOnly
       };
 
       onSearch(filters);
@@ -366,6 +368,38 @@ export default function SearchForm({ onSearch, isLoading, currentLocation, isGet
             <p className="text-xs text-gray-600 mt-2">
               レビュー数が少ない店舗を含めると新しい店舗を発見できます
             </p>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-gray-900 mb-2">
+            営業状況フィルタ
+          </label>
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={openNowOnly}
+                onChange={(e) => setOpenNowOnly(e.target.checked)}
+                className="sr-only"
+              />
+              <div className={`w-5 h-5 border-2 rounded-md flex items-center justify-center mr-3 transition-colors ${
+                openNowOnly ? 'bg-green-600 border-green-600' : 'border-gray-300'
+              }`}>
+                {openNowOnly && (
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex items-center">
+                <span className="text-2xl mr-2">🕐</span>
+                <div>
+                  <span className="text-sm font-medium text-gray-900">営業中の店舗のみ表示</span>
+                  <p className="text-xs text-gray-600">現在営業している店舗のみを検索結果に含めます</p>
+                </div>
+              </div>
+            </label>
           </div>
         </div>
 
