@@ -204,12 +204,22 @@ export default function Map({ center, places, onPlaceSelect, selectedPlace, curr
                 <span class="text-xs text-gray-600 font-medium">${distance.toFixed(1)}km</span>
               </div>
               ${place.business_status === 'OPERATIONAL' ? '<div class="mb-3"><span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">営業中</span></div>' : ''}
-              <button 
-                onclick="selectPlaceFromMap('${place.place_id}')"
-                class="w-full bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                詳細を表示
-              </button>
+              <div class="flex space-x-2">
+                <button 
+                  onclick="selectPlaceFromMap('${place.place_id}')"
+                  class="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  選択
+                </button>
+                <a 
+                  href="https://www.google.com/maps/place/?q=place_id:${place.place_id}" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors text-center"
+                >
+                  詳細
+                </a>
+              </div>
             </div>
           `;
           

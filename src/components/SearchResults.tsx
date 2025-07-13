@@ -231,6 +231,16 @@ export default function SearchResults({ results, centerPoint, onPlaceSelect, sel
                         <span className="text-xs hidden sm:inline">Web</span>
                       </a>
                     )}
+                    <a
+                      href={`https://www.google.com/maps/place/?q=place_id:${place.place_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-1 text-green-600 hover:text-green-800 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-sm">📍</span>
+                      <span className="text-xs hidden sm:inline">詳細</span>
+                    </a>
                   </div>
                   
                   <div className="flex items-center space-x-1">
